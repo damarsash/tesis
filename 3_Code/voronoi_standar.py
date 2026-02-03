@@ -7,7 +7,7 @@ from pyproj import Transformer
 # =====================================================
 # 1. LOAD DATA
 # =====================================================
-df = pd.read_excel("D:/IPB/TESIS/PENELITIAN/CODE/output/hasil_kmeans_2025-08-07.xlsx")
+df = pd.read_excel("D:/IPB/TESIS/PENELITIAN/CODE/output/hasil_kmeans_2025-08-20.xlsx")
 
 points_lonlat = df[['longitude', 'latitude']].values
 
@@ -35,6 +35,23 @@ centroids_utm = project(
 # 3. VORONOI
 # =====================================================
 vor = Voronoi(centroids_utm)
+
+# =====================================================
+# 3B. HITUNG JUMLAH POINT PER VORONOI (BERDASARKAN SEED)
+# =====================================================
+df_point_count = (
+    df.groupby("cluster_id")
+    .size()
+    .reset_index(name="n_point")
+    .sort_values("cluster_id")
+    .reset_index(drop=True)
+)
+
+# Tambahkan Voronoi ID (1-based, URUT)
+df_point_count["voronoi_id"] = np.arange(1, len(df_point_count) + 1)
+
+print("\nJUMLAH POINT DI SETIAP AREA VORONOI\n")
+print(df_point_count[["voronoi_id", "n_point"]])
 
 # =====================================================
 # 4. VISUALISASI RIDGE FINITE + INFINITE (FIXED)
@@ -85,7 +102,6 @@ for (p1, p2), ridge in zip(vor.ridge_points, vor.ridge_vertices):
 
         plt.plot([lon0, lon1], [lat0, lat1], 'k--', lw=1)
 
-
 # =====================================================
 # 5. PLOT POINT & CENTROID
 # =====================================================
@@ -93,8 +109,7 @@ plt.scatter(
     points_lonlat[:, 0],
     points_lonlat[:, 1],
     c='red',
-    s=8,
-
+    s=8
 )
 
 plt.scatter(
@@ -102,9 +117,30 @@ plt.scatter(
     centroids['centroid_latitude'],
     c='blue',
     s=140,
-    marker='X',
-
+    marker='X'
 )
+
+# =====================================================
+# 5B. LABEL NOMOR VORONOI (URUT 1,2,3,...)
+# =====================================================
+for i, (_, row) in enumerate(centroids.iterrows(), start=1):
+    plt.text(
+        row["centroid_longitude"],
+        row["centroid_latitude"],
+        str(i),                 # DIJAMIN 1,2,3,...
+        fontsize=12,
+        fontweight="bold",
+        color="black",
+        ha="center",
+        va="center",
+        bbox=dict(
+            facecolor="white",
+            edgecolor="black",
+            boxstyle="circle,pad=0.3",
+            alpha=0.8
+        )
+    )
+
 
 # =====================================================
 # 6. FINAL STYLING
