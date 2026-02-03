@@ -12,7 +12,7 @@ from math import radians, sin, cos, sqrt, atan2
 # 1. LOAD DATA
 # =====================================================
 df = pd.read_excel(
-    "D:/IPB/TESIS/PENELITIAN/CODE/output/hasil_kmeans_2025-08-20.xlsx"
+    "D:/IPB/TESIS/PENELITIAN/CODE/output/hasil_kmeans_2025-08-06.xlsx"
 )
 
 df["205_tm"] = pd.to_datetime(df["205_tm"])
@@ -273,3 +273,50 @@ df_n_point_per_voronoi = (
 
 print("\nJUMLAH POINT DI SETIAP AREA VORONOI\n")
 print(df_n_point_per_voronoi)
+
+# =====================================================
+# 14. JUMLAH POINT + CLF PER AREA VORONOI
+# =====================================================
+THETA_PLUS  = 1.00   # Θ⁺ (ambang overload)
+THETA_MINUS = 0.98   # Θ⁻ (ambang underload)
+
+df_n_point_per_voronoi = (
+    df.groupby("voronoi_id")
+    .size()
+    .reset_index(name="n_point")
+    .sort_values("voronoi_id")
+)
+
+# -----------------------------------------------------
+# Hitung kapasitas maksimum per kurir (A(ci))
+# -----------------------------------------------------
+total_point = df_n_point_per_voronoi["n_point"].sum()
+jumlah_voronoi = df_n_point_per_voronoi.shape[0]
+
+kapasitas_kurir = total_point / jumlah_voronoi
+
+# -----------------------------------------------------
+# Hitung CLF
+# -----------------------------------------------------
+df_n_point_per_voronoi["kapasitas_kurir"] = kapasitas_kurir
+df_n_point_per_voronoi["CLF"] = (
+    df_n_point_per_voronoi["n_point"] / kapasitas_kurir
+)
+
+# -----------------------------------------------------
+# Kategori CLF (Underload / Normal / Overload)
+# -----------------------------------------------------
+def clf_status(clf):
+    if clf > THETA_PLUS:
+        return "Overload"
+    elif clf < THETA_MINUS:
+        return "Underload"
+    else:
+        return "Normal"
+
+df_n_point_per_voronoi["status_CLF"] = (
+    df_n_point_per_voronoi["CLF"].apply(clf_status)
+)
+
+print("\nJUMLAH POINT & CLF SETIAP AREA VORONOI\n")
+print(df_n_point_per_voronoi.round(3))
