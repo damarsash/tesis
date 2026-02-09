@@ -12,7 +12,7 @@ from math import radians, sin, cos, sqrt, atan2
 # 1. LOAD DATA
 # =====================================================
 df = pd.read_excel(
-    "D:/IPB/TESIS/PENELITIAN/CODE/output/hasil_kmeans_2025-08-06.xlsx"
+    "D:/IPB/TESIS/PENELITIAN/CODE/output/hasil_kmeans_2025-08-20.xlsx"
 )
 
 df["205_tm"] = pd.to_datetime(df["205_tm"])
@@ -277,7 +277,7 @@ print(df_n_point_per_voronoi)
 # =====================================================
 # 14. JUMLAH POINT + CLF PER AREA VORONOI
 # =====================================================
-THETA_PLUS  = 1.00   # Θ⁺ (ambang overload)
+THETA_PLUS  = 1.01   # Θ⁺ (ambang overload)
 THETA_MINUS = 0.98   # Θ⁻ (ambang underload)
 
 df_n_point_per_voronoi = (
@@ -306,6 +306,11 @@ df_n_point_per_voronoi["CLF"] = (
 # -----------------------------------------------------
 # Kategori CLF (Underload / Normal / Overload)
 # -----------------------------------------------------
+df_n_point_per_voronoi["CLF"] = (
+    df_n_point_per_voronoi["CLF"]
+    .round(2)
+)
+
 def clf_status(clf):
     if clf > THETA_PLUS:
         return "Overload"
