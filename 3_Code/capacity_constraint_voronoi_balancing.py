@@ -9,7 +9,7 @@ from shapely import wkt
 from math import radians, sin, cos, sqrt, atan2
 import imageio.v2 as imageio
 import os
-
+from collections import deque
 
 # =====================================================
 # PARAMETER
@@ -22,7 +22,7 @@ MAX_ITER = 30
 # 1. LOAD DATA
 # =====================================================
 df = pd.read_excel(
-    "D:/IPB/TESIS/PENELITIAN/CODE/output/hasil_kmeans_2025-08-20.xlsx"
+    "D:/IPB/TESIS/PENELITIAN/CODE/output/hasil_kmeans_2025-08-07.xlsx"
 )
 df["205_tm"] = pd.to_datetime(df["205_tm"])
 points_lonlat = df[['longitude', 'latitude']].values
@@ -130,80 +130,115 @@ def recompute_centroids(df):
     ])
 
 # =====================================================
+# HITUNG TETANGGA VORONOI
+# =====================================================
+def compute_voronoi_neighbors(vor_polygons):
+    neighbors = {i: set() for i in range(1, len(vor_polygons)+1)}
+
+    for i, poly_i in enumerate(vor_polygons, start=1):
+        for j, poly_j in enumerate(vor_polygons, start=1):
+            if i == j:
+                continue
+
+            # cek adjacency spasial
+            if poly_i.touches(poly_j) or poly_i.intersects(poly_j):
+                inter = poly_i.intersection(poly_j)
+                if not inter.is_empty:
+                    neighbors[i].add(j)
+                    neighbors[j].add(i)
+
+    # convert set → list
+    neighbors = {k: list(v) for k, v in neighbors.items()}
+    return neighbors
+
+# =====================================================
 # CAPACITY BALANCING
 # =====================================================
-def capacity_balance(df, centroids_lonlat):
+# =====================================================
+# CAPACITY BALANCING BERBASIS TETANGGA VORONOI
+# =====================================================
+def capacity_balance_neighbors(df, centroids_lonlat, neighbors_dict,
+                               max_iter=20, tolerance=0):
+
     stat = df.groupby("voronoi_id").size().reset_index(name="n_point")
-
-    total = stat["n_point"].sum()
-    K = len(stat)
-
-    capacity_max = total // K
-    remaining = total % K
-
     load = dict(zip(stat["voronoi_id"], stat["n_point"]))
-    moved = 0
 
-    for cell, n in load.items():
-        if n <= capacity_max:
-            continue
+    total = sum(load.values())
+    K = len(load)
+    target = total / K
 
-        df_cell = df[df["voronoi_id"] == cell]
+    moved_total = 0
 
-        for idx, row in df_cell.iterrows():
+    def find_transfer_path(start_cell):
+        """
+        Cari jalur dari overload ke underload melalui graph tetangga.
+        BFS pada graph Voronoi.
+        """
+        visited = set()
+        queue = deque([(start_cell, [start_cell])])
 
-            if load[cell] <= capacity_max:
-                break
+        while queue:
+            current, path = queue.popleft()
+            visited.add(current)
 
-            lon, lat = row["longitude"], row["latitude"]
+            # jika menemukan underload → return path
+            if load[current] < target - tolerance:
+                return path
 
-            best_target = None
-            best_dist = 1e9
+            for nb in neighbors_dict.get(current, []):
+                if nb not in visited:
+                    queue.append((nb, path + [nb]))
 
-            for target in load.keys():
-                if target == cell:
+        return None
+
+    for iteration in range(max_iter):
+
+        moved_iter = 0
+
+        # urutkan dari paling overload
+        cells_sorted = sorted(load.keys(), key=lambda c: load[c], reverse=True)
+
+        for cell in cells_sorted:
+
+            if load[cell] <= target + tolerance:
+                continue
+
+            df_cell = df[df["voronoi_id"] == cell]
+
+            for idx, row in df_cell.iterrows():
+
+                if load[cell] <= target + tolerance:
+                    break
+
+                path = find_transfer_path(cell)
+
+                if path is None or len(path) < 2:
                     continue
-                if load[target] >= capacity_max:
-                    continue
 
-                c_lon, c_lat = centroids_lonlat[target-1]
-                d = haversine_km(lon, lat, c_lon, c_lat)
+                # tujuan akhir adalah underload
+                final_target = path[-1]
 
-                if d < best_dist:
-                    best_dist = d
-                    best_target = target
+                # pilih titik paling dekat centroid tujuan akhir
+                lon, lat = row["longitude"], row["latitude"]
+                c_lon, c_lat = centroids_lonlat[final_target-1]
+                dist = haversine_km(lon, lat, c_lon, c_lat)
 
-            if best_target is not None:
-                df.at[idx, "voronoi_id"] = best_target
+                # pindahkan langsung ke tujuan akhir
+                df.at[idx, "voronoi_id"] = final_target
+
                 load[cell] -= 1
-                load[best_target] += 1
-                moved += 1
+                load[final_target] += 1
+                moved_iter += 1
 
-    if remaining > 0:
-        sorted_cells = sorted(load.items(), key=lambda x: x[1])
-        targets = [vid for vid, _ in sorted_cells[:remaining]]
+        moved_total += moved_iter
 
-        for target in targets:
-            c_lon, c_lat = centroids_lonlat[target-1]
-            best_idx = None
-            best_dist = 1e9
+        max_dev = max(abs(load[c] - target) for c in load)
 
-            for idx, row in df.iterrows():
-                if row["voronoi_id"] == target:
-                    continue
-                d = haversine_km(row["longitude"], row["latitude"], c_lon, c_lat)
-                if d < best_dist:
-                    best_dist = d
-                    best_idx = idx
+        if moved_iter == 0 or max_dev <= tolerance:
+            break
 
-            if best_idx is not None:
-                old = df.at[best_idx, "voronoi_id"]
-                df.at[best_idx, "voronoi_id"] = target
-                load[old] -= 1
-                load[target] += 1
-                moved += 1
+    return df, moved_total, load
 
-    return df, moved
 
 # =====================================================
 # ITERATIVE VORONOI BALANCING
@@ -234,11 +269,22 @@ for iteration in range(MAX_ITER):
         for r in regions
         if not Polygon(vertices[r]).intersection(boundary_utm).is_empty
     ]
+    if iteration == 0:
+        df = assign_points(df, vor_polygons, points_utm)
 
-    df = assign_points(df, vor_polygons, points_utm)
+    # hitung tetangga voronoi
+    neighbors_dict = compute_voronoi_neighbors(vor_polygons)
 
     centroids_lonlat = recompute_centroids(df)
-    df, moved = capacity_balance(df, centroids_lonlat)
+
+    df, moved, load_state = capacity_balance_neighbors(
+        df,
+        centroids_lonlat,
+        neighbors_dict,
+        max_iter=10,
+        tolerance=0
+    )
+    print(f"Iter {iteration} | moved = {moved} | max_load = {max(load_state.values())} | min_load = {min(load_state.values())}")
 
     # =====================================================
     # SIMPAN FRAME VISUAL ITERASI
@@ -385,7 +431,18 @@ for i, poly in enumerate(vor_polygons, start=1):
     c_lon, c_lat = to_lonlat.transform(c.x, c.y)
 
     plt.scatter(c_lon, c_lat, s=300, facecolor='white', edgecolor='black')
-    plt.text(c_lon, c_lat, str(i), ha='center', va='center')
+    plt.text(c_lon, c_lat, str(i),
+        fontsize=10,
+        fontweight="bold",
+        color="black",
+        ha="center",
+        va="center",
+        bbox=dict(
+            facecolor="white",
+            edgecolor="black",
+            boxstyle="circle,pad=0.3",
+            alpha=0.8
+        ))
 
 plt.scatter(points_lonlat[:,0], points_lonlat[:,1], c='red', s=8)
 plt.title("Voronoi Balanced by Capacity")
