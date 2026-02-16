@@ -22,7 +22,7 @@ MAX_ITER = 30
 # 1. LOAD DATA
 # =====================================================
 df = pd.read_excel(
-    "D:/IPB/TESIS/PENELITIAN/CODE/output/hasil_kmeans_2025-08-07.xlsx"
+    "D:/IPB/TESIS/PENELITIAN/CODE/output/hasil_kmeans_2025-07-28.xlsx"
 )
 df["205_tm"] = pd.to_datetime(df["205_tm"])
 points_lonlat = df[['longitude', 'latitude']].values
@@ -407,7 +407,7 @@ def clf_status(clf):
     elif clf < THETA_MINUS:
         return "Underload"
     else:
-        return "Normal"
+        return "Balance"
 
 df_n_point_per_voronoi["status_CLF"] = df_n_point_per_voronoi["CLF"].apply(clf_status)
 
