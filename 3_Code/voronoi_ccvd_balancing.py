@@ -21,8 +21,9 @@ MAX_ITER = 30
 # =====================================================
 # 1. LOAD DATA
 # =====================================================
+running_date = "2025-07-28";
 df = pd.read_excel(
-    "D:/IPB/TESIS/PENELITIAN/CODE/output/hasil_kmeans_2025-07-28.xlsx"
+    f"D:/IPB/TESIS/PENELITIAN/CODE/output/kmeans/hasil_kmeans_{running_date}.xlsx"
 )
 df["205_tm"] = pd.to_datetime(df["205_tm"])
 points_lonlat = df[['longitude', 'latitude']].values
@@ -252,10 +253,10 @@ centroids_utm = np.array([
 # SETUP GIF OUTPUT
 # =====================================================
 frames = []
-gif_path = "D:/IPB/TESIS/PENELITIAN/CODE/output/voronoi_balancing_discreate.gif"
+gif_path = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/voronoi_balancing_discreate.gif"
 
 # folder sementara untuk frame
-temp_dir = "D:/IPB/TESIS/PENELITIAN/CODE/output/voronoi_frames_balance_discreate"
+temp_dir = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/voronoi_frames_balance_discreate"
 os.makedirs(temp_dir, exist_ok=True)
 # =====================================================
 
@@ -421,14 +422,17 @@ plt.figure(figsize=(10,10))
 
 bx, by = boundary_polygon.exterior.xy
 plt.plot(bx, by, 'k-', lw=2)
+voronoi_centroids_lonlat = {}
 
 for i, poly in enumerate(vor_polygons, start=1):
     x, y = poly.exterior.xy
     lon, lat = to_lonlat.transform(x, y)
+
     plt.plot(lon, lat, color='black')
 
     c = poly.centroid
     c_lon, c_lat = to_lonlat.transform(c.x, c.y)
+    voronoi_centroids_lonlat[i] = (c_lon, c_lat)
 
     plt.scatter(c_lon, c_lat, s=300, facecolor='white', edgecolor='black')
     plt.text(c_lon, c_lat, str(i),
@@ -443,9 +447,26 @@ for i, poly in enumerate(vor_polygons, start=1):
             boxstyle="circle,pad=0.3",
             alpha=0.8
         ))
+    df["voronoi_centroid_longitude"] = df["voronoi_id"].map(lambda vid: voronoi_centroids_lonlat.get(vid, (np.nan, np.nan))[0])
+    df["voronoi_centroid_latitude"] = df["voronoi_id"].map(lambda vid: voronoi_centroids_lonlat.get(vid, (np.nan, np.nan))[1])
 
 plt.scatter(points_lonlat[:,0], points_lonlat[:,1], c='red', s=8)
 plt.title("Voronoi Balanced by Capacity")
 plt.gca().set_aspect('equal')
 plt.grid(True)
 plt.show()
+
+# =====================================================
+# EXPORT DATA TITIK KE EXCEL
+# =====================================================
+#export_path = f"D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_voronoi_assignment_final_{running_date}.xlsx"
+df_export = df[[
+    "resi",                       # pastikan kolom ini memang ada di dataset
+    "latitude",
+    "longitude",
+    "voronoi_id",
+    "voronoi_centroid_latitude",
+    "voronoi_centroid_longitude"
+]].copy()
+df_export.to_excel(export_path, index=False)
+#print(f"\nData assignment Voronoi berhasil diexport ke:\n{export_path}")

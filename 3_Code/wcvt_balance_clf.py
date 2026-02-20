@@ -23,7 +23,7 @@ THETA_MINUS = 0.98
 # =====================================================
 # 1. LOAD DATA
 # =====================================================
-df = pd.read_excel("D:/IPB/TESIS/PENELITIAN/CODE/output/hasil_kmeans_2025-08-20.xlsx")
+df = pd.read_excel("D:/IPB/TESIS/PENELITIAN/CODE/output/kmeans/hasil_kmeans_2025-08-20.xlsx")
 df["205_tm"] = pd.to_datetime(df["205_tm"])
 points_lonlat = df[['longitude', 'latitude']].values
 
@@ -157,7 +157,7 @@ def shift_centroids(vor_polygons, clf_table, centroids_utm):
 # =====================================================
 # ITERASI WCVT
 # =====================================================
-frame_dir = "D:/IPB/TESIS/PENELITIAN/CODE/output/voronoi_frames_balance_clf"
+frame_dir = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/voronoi_frames_balance_clf"
 os.makedirs(frame_dir, exist_ok=True)
 frames = []
 
@@ -217,7 +217,7 @@ for it in range(MAX_ITER):
 # =====================================================
 # SIMPAN GIF
 # =====================================================
-gif_path = "D:/IPB/TESIS/PENELITIAN/CODE/output/voronoi_balance_clf.gif"
+gif_path = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/voronoi_balance_clf.gif"
 imageio.mimsave(gif_path, frames, duration=0.8)
 
 print(f"\nGIF tersimpan di: {gif_path}")

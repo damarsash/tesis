@@ -141,5 +141,5 @@ if __name__ == "__main__":
    best_path, best_distance = aco.run()
    print("\nRute Terbaik:", best_path)
    print("Total Jarak:", best_distance)
-   animate_routes_gif(cities, aco.history, "aco_bogor.gif")
+   animate_routes_gif(cities, aco.history, "D:/IPB/TESIS/PENELITIAN/CODE/output/aco_bogor.gif")
    plot_distance(aco.best_distances)

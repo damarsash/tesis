@@ -7,7 +7,7 @@ from pyproj import Transformer
 # =====================================================
 # 1. LOAD DATA
 # =====================================================
-df = pd.read_excel("D:/IPB/TESIS/PENELITIAN/CODE/output/hasil_kmeans_2025-08-20.xlsx")
+df = pd.read_excel("D:/IPB/TESIS/PENELITIAN/CODE/output/kmeans/hasil_kmeans_2025-08-20.xlsx")
 
 points_lonlat = df[['longitude', 'latitude']].values
 

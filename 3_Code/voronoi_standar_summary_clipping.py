@@ -12,7 +12,7 @@ from math import radians, sin, cos, sqrt, atan2
 # 1. LOAD DATA
 # =====================================================
 df = pd.read_excel(
-    "D:/IPB/TESIS/PENELITIAN/CODE/output/hasil_kmeans_2025-08-20.xlsx"
+    "D:/IPB/TESIS/PENELITIAN/CODE/output/kmeans/hasil_kmeans_2025-08-20.xlsx"
 )
 
 df["205_tm"] = pd.to_datetime(df["205_tm"])
