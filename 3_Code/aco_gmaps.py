@@ -11,7 +11,7 @@ import json
 # ==========================================
 # CONFIG
 # ==========================================
-running_date = "2025-07-28"
+running_date = "2025-07-29"
 
 API_KEY = "AIzaSyAdNOaRAzzRFTl_spTUbvm9O_yz8qBByew"
 INPUT_FILE = f"D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_voronoi_assignment_final_{running_date}.xlsx"

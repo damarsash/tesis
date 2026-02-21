@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import folium
+from folium.features import DivIcon
 import os
 import pickle
 import hashlib
@@ -9,7 +10,7 @@ from math import radians, sin, cos, sqrt, atan2
 # =========================
 # PARAMETER GLOBAL
 # =========================
-running_date = "2025-07-28"
+running_date = "2025-07-29"
 FILE_PATH = f"D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_voronoi_assignment_final_{running_date}.xlsx"
 
 START_LAT = -6.535158
@@ -18,14 +19,15 @@ START_LON = 106.799133
 AVG_SPEED_KMH = 30
 SERVICE_TIME_MIN = 2
 
-N_ANTS = 25
-N_ITER = 80
+N_ANTS = 37
+N_ITER = 100
 ALPHA = 1
-BETA = 3
-EVAPORATION = 0.5
-Q = 100
+BETA = 9
+EVAPORATION = 0.65
+INITIAL_PHEROMONE = 0.2
 
-MAP_VORONOI_ID = 1  # pilih area yang ingin divisualisasikan
+Q = 100
+MAP_VORONOI_ID = 17  # pilih area yang ingin divisualisasikan
 results = []
 
 route_rows = []   # urutan kirim per resi
@@ -87,10 +89,10 @@ def build_distance_matrix(coords):
     return dist
 
 # =========================
-# ACO TSP
+# ACO TSP (RETURN TO DEPOT)
 # =========================
 def aco_route_fast(dist_matrix, coords):
-    key = hash_coords(coords) + f"_{N_ANTS}_{N_ITER}_{ALPHA}_{BETA}"
+    key = hash_coords(coords) + f"_{N_ANTS}_{N_ITER}_{ALPHA}_{BETA}_cycle"
     cached = load_cache("aco_fast", key)
     if cached is not None:
         print("⚡ FAST ACO loaded from cache")
@@ -98,19 +100,13 @@ def aco_route_fast(dist_matrix, coords):
 
     n = len(dist_matrix)
 
-    # =========================
-    # HEURISTIC (1 / time)
-    # =========================
     time_matrix = dist_matrix / AVG_SPEED_KMH
     heuristic = 1 / (time_matrix + 1e-9)
 
-    # =========================
-    # CANDIDATE LIST
-    # =========================
     CANDIDATE_SIZE = min(15, n-1)
     candidate_list = np.argsort(dist_matrix, axis=1)[:, 1:CANDIDATE_SIZE+1]
 
-    pheromone = np.ones((n, n))
+    pheromone = np.full((n, n), INITIAL_PHEROMONE)
     best_route = None
     best_length = float("inf")
     stagnation = 0
@@ -126,7 +122,6 @@ def aco_route_fast(dist_matrix, coords):
 
             for step in range(n-1):
                 i = route[-1]
-
                 candidates = [j for j in candidate_list[i] if not visited[j]]
                 if not candidates:
                     candidates = np.where(~visited)[0]
@@ -140,7 +135,11 @@ def aco_route_fast(dist_matrix, coords):
                 route.append(next_node)
                 visited[next_node] = True
 
+            # =========================
+            # PANJANG RUTE SIKLIK
+            # =========================
             length = np.sum(dist_matrix[route[:-1], route[1:]])
+            length += dist_matrix[route[-1], route[0]]  # kembali ke depot
 
             all_routes.append(route)
             all_lengths.append(length)
@@ -150,32 +149,29 @@ def aco_route_fast(dist_matrix, coords):
                 best_route = route
                 stagnation = 0
 
-        # =========================
-        # EARLY STOP
-        # =========================
         stagnation += 1
         if stagnation > 15:
             print(f"🛑 Early convergence at iter {iteration}")
             break
 
-        # =========================
-        # PHEROMONE UPDATE
-        # =========================
         pheromone *= (1 - EVAPORATION)
 
-        # elitist update (top 20%)
         elite_count = max(1, int(0.2 * N_ANTS))
         elite_idx = np.argsort(all_lengths)[:elite_count]
 
         for idx in elite_idx:
             route = all_routes[idx]
             length = all_lengths[idx]
+
             for i in range(len(route)-1):
                 pheromone[route[i], route[i+1]] += Q / length
 
-        # global best reinforcement
+            pheromone[route[-1], route[0]] += Q / length  # edge kembali
+
         for i in range(len(best_route)-1):
             pheromone[best_route[i], best_route[i+1]] += 2 * Q / best_length
+
+        pheromone[best_route[-1], best_route[0]] += 2 * Q / best_length
 
     result = (best_route, best_length)
     save_cache("aco_fast", key, result)
@@ -198,7 +194,9 @@ for vid in sorted(df["voronoi_id"].unique()):
     route, total_distance = aco_route_fast(dist_matrix, coords)
 
     delivery_points = len(coords) - 1
+    # total_distance sudah termasuk kembali ke depot
     travel_time_hours = total_distance / AVG_SPEED_KMH
+    # service time hanya di titik delivery (bukan depot)
     total_time_min = travel_time_hours * 60 + delivery_points * SERVICE_TIME_MIN
 
     print("Jumlah titik:", delivery_points)
@@ -244,24 +242,66 @@ for vid in sorted(df["voronoi_id"].unique()):
         "n_stop": delivery_points
     })
 
-    # =========================
-    # VISUALISASI MAP
+     # =========================
+    # MAP VISUALIZATION
     # =========================
     if vid == MAP_VORONOI_ID:
         m = folium.Map(location=[START_LAT, START_LON], zoom_start=12)
 
         ordered_coords = [coords[i] for i in route]
+        ordered_coords.append(coords[0])  # kembali ke depot
 
-        folium.Marker([START_LAT, START_LON],
-                      popup="START",
-                      icon=folium.Icon(color="red")).add_to(m)
+        folium.Marker(
+            [START_LAT, START_LON],
+            popup="START - Distribution Center",
+            icon=folium.Icon(color="red")
+        ).add_to(m)
 
-        for i, (lat, lon) in enumerate(ordered_coords[1:], start=1):
-            folium.Marker([lat, lon], popup=f"Stop {i}").add_to(m)
+        for seq in range(1, len(route)):
+            node_index = route[seq]
+            row = sub.iloc[node_index - 1]
+
+            lat = row["latitude"]
+            lon = row["longitude"]
+            resi = row["resi"]
+
+            popup_text = f"""
+            <b>Urutan Kirim:</b> {seq}<br>
+            <b>No Resi:</b> {resi}
+            """
+
+            folium.Marker(
+                [lat, lon],
+                popup=folium.Popup(popup_text, max_width=250),
+                tooltip=f"Stop {seq}",
+                icon=DivIcon(
+                    icon_size=(36, 36),
+                    icon_anchor=(18, 18),
+                    html=f"""
+                    <div style="
+                        background-color:#2A81CB;
+                        color:white;
+                        border-radius:50%;
+                        width:28px;
+                        height:28px;
+                        text-align:center;
+                        font-weight:bold;
+                        line-height:28px;
+                        border:2px solid white;
+                        box-shadow:0 0 3px rgba(0,0,0,0.6);
+                    ">
+                        {seq}
+                    </div>
+                    """
+                )
+            ).add_to(m)
 
         folium.PolyLine(ordered_coords).add_to(m)
-        m.save(f"D:/IPB/TESIS/PENELITIAN/CODE/output/aco/rute_{running_date}_voronoi_{vid}.html")
-        
+
+        map_path = f"D:/IPB/TESIS/PENELITIAN/CODE/output/aco/rute_{running_date}_voronoi_{vid}.html"
+        m.save(map_path)
+        print("🗺️ Map tersimpan:", map_path)
+
 # =========================
 # SAVE SUMMARY
 # =========================
