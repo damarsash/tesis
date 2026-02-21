@@ -10,7 +10,7 @@ from math import radians, sin, cos, sqrt, atan2
 # =========================
 # PARAMETER GLOBAL
 # =========================
-running_date = "2025-07-29"
+running_date = "2025-08-06"
 FILE_PATH = f"D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_voronoi_assignment_final_{running_date}.xlsx"
 
 START_LAT = -6.535158
@@ -19,7 +19,7 @@ START_LON = 106.799133
 AVG_SPEED_KMH = 30
 SERVICE_TIME_MIN = 2
 
-N_ANTS = 37
+N_ANTS = 40
 N_ITER = 100
 ALPHA = 1
 BETA = 9
@@ -27,7 +27,7 @@ EVAPORATION = 0.65
 INITIAL_PHEROMONE = 0.2
 
 Q = 100
-MAP_VORONOI_ID = 17  # pilih area yang ingin divisualisasikan
+MAP_VORONOI_ID = 19  # pilih area yang ingin divisualisasikan
 results = []
 
 route_rows = []   # urutan kirim per resi
