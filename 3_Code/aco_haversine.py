@@ -10,7 +10,7 @@ from math import radians, sin, cos, sqrt, atan2
 # =========================
 # PARAMETER GLOBAL
 # =========================
-running_date = "2025-08-06"
+running_date = "2025-07-28"
 FILE_PATH = f"D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_voronoi_assignment_final_{running_date}.xlsx"
 
 START_LAT = -6.535158
@@ -19,7 +19,7 @@ START_LON = 106.799133
 AVG_SPEED_KMH = 30
 SERVICE_TIME_MIN = 2
 
-N_ANTS = 40
+N_ANTS = 37
 N_ITER = 100
 ALPHA = 1
 BETA = 9
@@ -27,11 +27,15 @@ EVAPORATION = 0.65
 INITIAL_PHEROMONE = 0.2
 
 Q = 100
-MAP_VORONOI_ID = 19  # pilih area yang ingin divisualisasikan
-results = []
+MAP_VORONOI_ID = 5  # pilih area yang ingin divisualisasikan
 
+results = []
 route_rows = []   # urutan kirim per resi
 summary_rows = [] # ringkasan per kurir
+all_distances = []
+all_points = []
+all_times = []
+all_vids = []
 # =========================
 # CACHE CONFIG
 # =========================
@@ -242,6 +246,10 @@ for vid in sorted(df["voronoi_id"].unique()):
         "n_stop": delivery_points
     })
 
+    all_distances.append(total_distance)
+    all_points.append(delivery_points)
+    all_times.append(total_time_min)
+    all_vids.append(vid)
      # =========================
     # MAP VISUALIZATION
     # =========================
@@ -317,3 +325,36 @@ with pd.ExcelWriter(output_path) as writer:
 print("\n✅ Semua rute selesai dihitung")
 print("📁 File hasil:", output_path)
 print(f"🗺️ Map area {MAP_VORONOI_ID}: rute_{running_date}_voronoi_{MAP_VORONOI_ID}.html")
+
+# =====================================================
+# SUMMARY GLOBAL – JARAK
+# =====================================================
+all_distances = np.array(all_distances)
+all_points = np.array(all_points)
+
+df_summary_global = pd.DataFrame([{
+    "jumlah_area_voronoi": len(all_vids),
+    "total_point": int(all_points.sum()),
+    "total_jarak_global_km": all_distances.sum(),
+    "mean_jarak_km": all_distances.mean(),
+    "std_jarak_km": all_distances.std(),
+    "min_jarak_km": all_distances.min(),
+    "max_jarak_km": all_distances.max()
+}])
+
+print("\nSUMMARY GLOBAL – JARAK\n")
+print(df_summary_global.round(3))
+
+# =====================================================
+# SUMMARY GLOBAL – JUMLAH POINT
+# =====================================================
+df_summary_point_global = pd.DataFrame([{
+    "total_point_global": int(all_points.sum()),
+    "mean_point_per_cell": all_points.mean(),
+    "std_point_per_cell": all_points.std(),
+    "min_point_per_cell": all_points.min(),
+    "max_point_per_cell": all_points.max()
+}])
+
+print("\nSUMMARY GLOBAL – JUMLAH POINT PER CELL\n")
+print(df_summary_point_global.round(2))
