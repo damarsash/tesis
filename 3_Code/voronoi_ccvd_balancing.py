@@ -21,7 +21,7 @@ MAX_ITER = 30
 # =====================================================
 # 1. LOAD DATA
 # =====================================================
-running_date = "2025-07-28";
+running_date = "2025-08-20";
 df = pd.read_excel(
     f"D:/IPB/TESIS/PENELITIAN/CODE/output/kmeans/hasil_kmeans_{running_date}.xlsx"
 )
@@ -253,10 +253,10 @@ centroids_utm = np.array([
 # SETUP GIF OUTPUT
 # =====================================================
 frames = []
-gif_path = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/voronoi_balancing_discreate.gif"
+gif_path = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_voronoi_balancing.gif"
 
 # folder sementara untuk frame
-temp_dir = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/voronoi_frames_balance_discreate"
+temp_dir = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_frame_gif"
 os.makedirs(temp_dir, exist_ok=True)
 # =====================================================
 
