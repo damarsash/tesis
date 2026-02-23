@@ -10,7 +10,7 @@ library(RColorBrewer)
 library(dplyr)
 library(geosphere)
 
-DATE_FILTER <- "2025-08-07"
+DATE_FILTER <- "2025-08-20"
 
 # =====================================================
 # 1. BACA DATA UTAMA
@@ -69,8 +69,13 @@ data <- data %>%
   left_join(centroid_df, by = "cluster_id")
 
 # =====================================================
-# 4. VISUALISASI LEAFLET
+# 4. VISUALISASI LEAFLET + LABEL NIK KURIR
 # =====================================================
+
+# centroid + NIK kurir
+centroid_label <- centroid_df %>%
+  left_join(cluster_lookup, by = "cluster_id")
+
 pal <- colorFactor(
   palette = colorRampPalette(brewer.pal(9, "Set1"))(k),
   domain = data$kurir
@@ -78,6 +83,7 @@ pal <- colorFactor(
 
 leaflet(data) %>%
   addProviderTiles("CartoDB.Positron") %>%
+  
   addCircleMarkers(
     ~longitude, ~latitude,
     label = ~paste(resi, ":", kurir),
@@ -86,11 +92,34 @@ leaflet(data) %>%
     stroke = FALSE,
     fillOpacity = 0.8
   ) %>%
-  addLegend(
-    position = "bottomright",
-    pal = pal,
-    values = ~kurir,
-    title = "Cluster / Kurir"
+  
+  addCircleMarkers(
+    data = centroid_label,
+    ~centroid_longitude,
+    ~centroid_latitude,
+    radius = 10,
+    color = "black",
+    fillColor = "yellow",
+    fillOpacity = 1,
+    stroke = TRUE,
+    weight = 2
+  ) %>%
+  
+  addLabelOnlyMarkers(
+    data = centroid_label,
+    ~centroid_longitude,
+    ~centroid_latitude,
+    label = ~paste("NIK:", kurir),
+    labelOptions = labelOptions(
+      noHide = TRUE,
+      direction = "top",
+      textOnly = TRUE,
+      style = list(
+        "font-size" = "12px",
+        "font-weight" = "bold",
+        "color" = "black"
+      )
+    )
   )
 
 # =====================================================
@@ -174,7 +203,7 @@ write_xlsx(
     summary_resi  = resi_count_per_cluster
   ),
   path = paste0(
-    "D:/IPB/TESIS/PENELITIAN/CODE/output/kmeans/hasil_kmeans_",
+    "D:/IPB/TESIS/PENELITIAN/CODE/output/hasil_kmeans_",
     DATE_FILTER,
     ".xlsx"
   )
