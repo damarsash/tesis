@@ -146,10 +146,10 @@ def shift_centroids(vor_polygons, clf_table, centroids_utm):
 
         direction = c - centroid_area
 
-        if status=="Overload":
+        if status=="Underload":
             new_centroids[i-1] = c + ALPHA_OVER * direction
 
-        elif status=="Underload":
+        elif status=="Overload":
             new_centroids[i-1] = c - ALPHA_UNDER * direction
 
     return new_centroids
