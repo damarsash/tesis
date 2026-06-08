@@ -21,7 +21,7 @@ MAX_ITER = 30
 # =====================================================
 # 1. LOAD DATA
 # =====================================================
-running_date = "2025-08-20";
+running_date = "2025-07-28";
 df = pd.read_excel(
     f"D:/IPB/TESIS/PENELITIAN/CODE/output/kmeans/hasil_kmeans_{running_date}.xlsx"
 )
@@ -155,11 +155,90 @@ def compute_voronoi_neighbors(vor_polygons):
 # =====================================================
 # CAPACITY BALANCING
 # =====================================================
+
+def choose_boundary_point(
+        df,
+        source_cell,
+        target_cell,
+        vor_polygons):
+
+    source_poly = vor_polygons[source_cell - 1]
+    target_poly = vor_polygons[target_cell - 1]
+
+    shared_boundary = source_poly.boundary.intersection(
+        target_poly.boundary
+    )
+
+    if shared_boundary.is_empty:
+        return None
+
+    candidates = []
+
+    df_source = df[df["voronoi_id"] == source_cell]
+
+    for idx, row in df_source.iterrows():
+
+        p = Point(
+            to_utm.transform(
+                row["longitude"],
+                row["latitude"]
+            )
+        )
+
+        dist = p.distance(shared_boundary)
+
+        candidates.append((idx, dist))
+
+    if len(candidates) == 0:
+        return None
+
+    candidates.sort(key=lambda x: x[1])
+
+    return candidates[0][0]
+
+def transfer_along_bfs_path(
+        df,
+        path,
+        load,
+        vor_polygons):
+
+    moved = 0
+
+    for i in range(len(path) - 1):
+
+        source = path[i]
+        target = path[i + 1]
+
+        idx_move = choose_boundary_point(
+            df,
+            source,
+            target,
+            vor_polygons
+        )
+
+        if idx_move is None:
+            continue
+
+        df.at[idx_move, "voronoi_id"] = target
+
+        load[source] -= 1
+        load[target] += 1
+
+        moved += 1
+
+    return moved
+
 # =====================================================
 # CAPACITY BALANCING BERBASIS TETANGGA VORONOI
 # =====================================================
-def capacity_balance_neighbors(df, centroids_lonlat, neighbors_dict,
-                               max_iter=20, tolerance=0):
+
+def capacity_balance_neighbors(
+        df,
+        centroids_lonlat,
+        neighbors_dict,
+        vor_polygons,
+        max_iter=20,
+        tolerance=0):
 
     stat = df.groupby("voronoi_id").size().reset_index(name="n_point")
     load = dict(zip(stat["voronoi_id"], stat["n_point"]))
@@ -206,30 +285,24 @@ def capacity_balance_neighbors(df, centroids_lonlat, neighbors_dict,
 
             df_cell = df[df["voronoi_id"] == cell]
 
-            for idx, row in df_cell.iterrows():
-
-                if load[cell] <= target + tolerance:
-                    break
+            while load[cell] > target + tolerance:
 
                 path = find_transfer_path(cell)
 
-                if path is None or len(path) < 2:
-                    continue
+                if path is None:
+                    break
 
-                # tujuan akhir adalah underload
-                final_target = path[-1]
+                moved_path = transfer_along_bfs_path(
+                    df,
+                    path,
+                    load,
+                    vor_polygons
+                )
 
-                # pilih titik paling dekat centroid tujuan akhir
-                lon, lat = row["longitude"], row["latitude"]
-                c_lon, c_lat = centroids_lonlat[final_target-1]
-                dist = haversine_km(lon, lat, c_lon, c_lat)
+                if moved_path == 0:
+                    break
 
-                # pindahkan langsung ke tujuan akhir
-                df.at[idx, "voronoi_id"] = final_target
-
-                load[cell] -= 1
-                load[final_target] += 1
-                moved_iter += 1
+                moved_iter += moved_path
 
         moved_total += moved_iter
 
@@ -253,10 +326,10 @@ centroids_utm = np.array([
 # SETUP GIF OUTPUT
 # =====================================================
 frames = []
-gif_path = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd_non_boundaries/ccvd_voronoi_balancing.gif"
+gif_path = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_voronoi_balancing.gif"
 
 # folder sementara untuk frame
-temp_dir = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd_non_boundaries/ccvd_frame_gif"
+temp_dir = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_frame_gif"
 os.makedirs(temp_dir, exist_ok=True)
 # =====================================================
 
@@ -282,6 +355,7 @@ for iteration in range(MAX_ITER):
         df,
         centroids_lonlat,
         neighbors_dict,
+        vor_polygons,
         max_iter=10,
         tolerance=0
     )
@@ -351,18 +425,23 @@ df["seg_km"] = df.apply(
 )
 
 # =====================================================
-# STATISTIK JARAK
+# STATISTIK JARAK KE CENTROID
 # =====================================================
-df_stat_jarak = df.groupby("voronoi_id").agg(
-    n_points=("seg_km", "count"),
-    total_jarak_km=("seg_km", "sum"),
-    rata2_jarak_km=("seg_km", "mean"),
-    stddev_jarak_km=("seg_km", "std"),
-    min_jarak_km=("seg_km", "min"),
-    max_jarak_km=("seg_km", "max")
-).reset_index()
 
-print("\nSTATISTIK JARAK PER VORONOI\n")
+df_stat_jarak = (
+    df.groupby("voronoi_id")
+      .agg(
+          n_points=("dist_to_centroid_km", "count"),
+          total_jarak_km=("dist_to_centroid_km", "sum"),
+          rata2_jarak_km=("dist_to_centroid_km", "mean"),
+          stddev_jarak_km=("dist_to_centroid_km", "std"),
+          min_jarak_km=("dist_to_centroid_km", "min"),
+          max_jarak_km=("dist_to_centroid_km", "max")
+      )
+      .reset_index()
+)
+
+print("\nSTATISTIK JARAK TITIK KE CENTROID VORONOI\n")
 print(df_stat_jarak.round(3))
 
 # =====================================================
@@ -450,6 +529,20 @@ for i, poly in enumerate(vor_polygons, start=1):
     df["voronoi_centroid_longitude"] = df["voronoi_id"].map(lambda vid: voronoi_centroids_lonlat.get(vid, (np.nan, np.nan))[0])
     df["voronoi_centroid_latitude"] = df["voronoi_id"].map(lambda vid: voronoi_centroids_lonlat.get(vid, (np.nan, np.nan))[1])
 
+# =====================================================
+# JARAK TITIK -> CENTROID VORONOI FINAL
+# =====================================================
+
+df["dist_to_centroid_km"] = df.apply(
+    lambda r: haversine_km(
+        r["longitude"],
+        r["latitude"],
+        r["voronoi_centroid_longitude"],
+        r["voronoi_centroid_latitude"]
+    ),
+    axis=1
+)
+
 plt.scatter(points_lonlat[:,0], points_lonlat[:,1], c='red', s=8)
 plt.title("Voronoi Balanced by Capacity")
 plt.gca().set_aspect('equal')
@@ -459,7 +552,7 @@ plt.show()
 # =====================================================
 # EXPORT DATA TITIK KE EXCEL
 # =====================================================
-export_path = f"D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd_non_boundaries/ccvd_voronoi_assignment_final_{running_date}.xlsx"
+export_path = f"D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_voronoi_assignment_final_{running_date}.xlsx"
 df_export = df[[
     "resi",                       # pastikan kolom ini memang ada di dataset
     "latitude",
