@@ -253,10 +253,10 @@ centroids_utm = np.array([
 # SETUP GIF OUTPUT
 # =====================================================
 frames = []
-gif_path = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_voronoi_balancing.gif"
+gif_path = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd_non_boundaries/ccvd_voronoi_balancing.gif"
 
 # folder sementara untuk frame
-temp_dir = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_frame_gif"
+temp_dir = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd_non_boundaries/ccvd_frame_gif"
 os.makedirs(temp_dir, exist_ok=True)
 # =====================================================
 
@@ -459,7 +459,7 @@ plt.show()
 # =====================================================
 # EXPORT DATA TITIK KE EXCEL
 # =====================================================
-#export_path = f"D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_voronoi_assignment_final_{running_date}.xlsx"
+export_path = f"D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd_non_boundaries/ccvd_voronoi_assignment_final_{running_date}.xlsx"
 df_export = df[[
     "resi",                       # pastikan kolom ini memang ada di dataset
     "latitude",

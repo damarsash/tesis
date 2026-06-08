@@ -10,7 +10,7 @@ from math import radians, sin, cos, sqrt, atan2
 # =========================
 # PARAMETER GLOBAL
 # =========================
-running_date = "2025-07-28"
+running_date = "2025-08-20"
 FILE_PATH = f"D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_voronoi_assignment_final_{running_date}.xlsx"
 
 START_LAT = -6.535158
