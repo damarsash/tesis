@@ -15,6 +15,7 @@ DATE_FILTER <- "2025-08-20"
 # =====================================================
 # 1. BACA DATA UTAMA
 # =====================================================
+start_time <- Sys.time()
 data <- read_excel(
   "D:/IPB/TESIS/PENELITIAN/CODE/source/CLBT0_21JUL_20AUG.xlsx",
   sheet = "Raw"
@@ -208,4 +209,19 @@ write_xlsx(
     ".xlsx"
   )
 )
+# =====================================================
+# TIMER END
+# =====================================================
+end_time <- Sys.time()
 
+execution_time <- as.numeric(
+  difftime(
+    end_time,
+    start_time,
+    units = "secs"
+  )
+)
+
+cat("\n========================================\n")
+cat("TOTAL COMPUTATION TIME :", round(execution_time, 2), "seconds\n")
+cat("========================================\n")

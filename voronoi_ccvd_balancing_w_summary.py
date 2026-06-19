@@ -1,16 +1,13 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from scipy.spatial import Voronoi
 from pyproj import Transformer
 from shapely.geometry import Polygon, Point
 from shapely.ops import unary_union
 from shapely import wkt
 from math import radians, sin, cos, sqrt, atan2
-import imageio.v2 as imageio
-import os
 from collections import deque
-import seaborn as sns
+import time
 
 # =====================================================
 # PARAMETER
@@ -19,10 +16,11 @@ THETA_PLUS  = 1.01
 THETA_MINUS = 0.98
 MAX_ITER = 30
 
+start_time = time.time()
 # =====================================================
 # 1. LOAD DATA
 # =====================================================
-running_date = "2025-07-29";
+running_date = "2025-07-28";
 df = pd.read_excel(
     f"D:/IPB/TESIS/PENELITIAN/CODE/output/kmeans/hasil_kmeans_{running_date}.xlsx"
 )
@@ -121,15 +119,6 @@ def assign_points(df, vor_polygons, points_utm):
                 df.at[idx, "voronoi_id"] = i
 
     return df[df["voronoi_id"] >= 0]
-
-# =====================================================
-# UPDATE CENTROID
-# =====================================================
-def recompute_centroids(df):
-    return np.array([
-        [g["longitude"].mean(), g["latitude"].mean()]
-        for _, g in df.groupby("voronoi_id")
-    ])
 
 # =====================================================
 # HITUNG TETANGGA VORONOI
@@ -235,7 +224,6 @@ def transfer_along_bfs_path(
 
 def capacity_balance_neighbors(
         df,
-        centroids_lonlat,
         neighbors_dict,
         vor_polygons,
         max_iter=20,
@@ -273,7 +261,7 @@ def capacity_balance_neighbors(
         return None
 
     for iteration in range(max_iter):
-
+        iter_start = time.time()
         moved_iter = 0
 
         # urutkan dari paling overload
@@ -323,29 +311,6 @@ centroids_utm = np.array([
     for x, y in centroids[['centroid_longitude','centroid_latitude']].values
 ])
 
-# =====================================================
-# TRACK CONVERGENCE
-# =====================================================
-std_history = []
-max_history = []
-min_history = []
-
-before_workload = (
-    df.groupby("cluster_id")
-      .size()
-      .values
-)
-
-# =====================================================
-# SETUP GIF OUTPUT
-# =====================================================
-frames = []
-gif_path = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_voronoi_balancing.gif"
-
-# folder sementara untuk frame
-temp_dir = "D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_frame_gif"
-os.makedirs(temp_dir, exist_ok=True)
-# =====================================================
 
 for iteration in range(MAX_ITER):
 
@@ -363,85 +328,47 @@ for iteration in range(MAX_ITER):
     # hitung tetangga voronoi
     neighbors_dict = compute_voronoi_neighbors(vor_polygons)
 
-    centroids_lonlat = recompute_centroids(df)
-
     df, moved, load_state = capacity_balance_neighbors(
         df,
-        centroids_lonlat,
         neighbors_dict,
         vor_polygons,
         max_iter=10,
         tolerance=0
     )
     print(f"Iter {iteration} | moved = {moved} | max_load = {max(load_state.values())} | min_load = {min(load_state.values())}")
-
-    loads = np.array(list(load_state.values()))
-
-    std_history.append(loads.std())
-    max_history.append(loads.max())
-    min_history.append(loads.min())
-    # =====================================================
-    # SIMPAN FRAME VISUAL ITERASI
-    # =====================================================
-    plt.figure(figsize=(8,8))
-
-    bx, by = boundary_polygon.exterior.xy
-    plt.plot(bx, by, 'k-', lw=2)
-
-    for i, poly in enumerate(vor_polygons, start=1):
-        x, y = poly.exterior.xy
-        lon, lat = to_lonlat.transform(x, y)
-        plt.plot(lon, lat, color='black')
-
-        c = poly.centroid
-        c_lon, c_lat = to_lonlat.transform(c.x, c.y)
-
-        plt.scatter(c_lon, c_lat, s=200, facecolor='white', edgecolor='black')
-        plt.text(c_lon, c_lat, str(i), ha='center', va='center', fontsize=8)
-
-    plt.scatter(points_lonlat[:,0], points_lonlat[:,1], c='red', s=5)
-    plt.title(f"Iterasi {iteration} | moved = {moved}")
-    plt.gca().set_aspect('equal')
-    plt.grid(True)
-
-    frame_path = os.path.join(temp_dir, f"frame_{iteration:03d}.png")
-    plt.savefig(frame_path, dpi=150)
-    plt.close()
-
-    frames.append(imageio.imread(frame_path))
-    # =========================================================
-
-    if moved == 0:
-        print(f"Konvergen pada iterasi {iteration}")
-        break
-
-    centroids_utm = np.array([
-        to_utm.transform(lon, lat)
-        for lon, lat in centroids_lonlat
-    ])
+    
 
 # =====================================================
-# EXPORT GIF
+# VISUAL FINAL
 # =====================================================
-if len(frames) > 0:
-    imageio.mimsave(gif_path, frames, duration=1.0)
-    print(f"\nGIF tersimpan di: {gif_path}")
+voronoi_centroids_lonlat = {}
+
+for i, poly in enumerate(vor_polygons, start=1):
+    x, y = poly.exterior.xy
+    lon, lat = to_lonlat.transform(x, y)
+
+    c = poly.centroid
+    c_lon, c_lat = to_lonlat.transform(c.x, c.y)
+    voronoi_centroids_lonlat[i] = (c_lon, c_lat)
+
+
+    df["voronoi_centroid_longitude"] = df["voronoi_id"].map(lambda vid: voronoi_centroids_lonlat.get(vid, (np.nan, np.nan))[0])
+    df["voronoi_centroid_latitude"] = df["voronoi_id"].map(lambda vid: voronoi_centroids_lonlat.get(vid, (np.nan, np.nan))[1])
 
 # =====================================================
-# HITUNG JARAK FINAL
+# JARAK TITIK -> CENTROID VORONOI FINAL
 # =====================================================
-df = df.sort_values(["voronoi_id", "205_tm"])
 
-df["lon_prev"] = df.groupby("voronoi_id")["longitude"].shift(1)
-df["lat_prev"] = df.groupby("voronoi_id")["latitude"].shift(1)
-
-df["seg_km"] = df.apply(
+df["dist_to_centroid_km"] = df.apply(
     lambda r: haversine_km(
-        r["lon_prev"], r["lat_prev"],
-        r["longitude"], r["latitude"]
-    ) if pd.notna(r["lon_prev"]) else 0,
+        r["longitude"],
+        r["latitude"],
+        r["voronoi_centroid_longitude"],
+        r["voronoi_centroid_latitude"]
+    ),
     axis=1
 )
+
 
 # =====================================================
 # STATISTIK JARAK KE CENTROID
@@ -514,242 +441,6 @@ print("\nJUMLAH POINT & CLF SETIAP AREA VORONOI\n")
 print(df_n_point_per_voronoi)
 
 # =====================================================
-# JARAK VS JUMLAH PARCEL
-# =====================================================
-
-df_distance_parcel = (
-    df.groupby("voronoi_id")
-      .agg(
-          total_parcel=("resi", "count"),
-          total_distance_to_centroid=("dist_to_centroid_km", "sum"),
-          avg_distance_to_centroid=("dist_to_centroid_km", "mean")
-      )
-      .reset_index()
-)
-
-print("\nJARAK VS JUMLAH PARCEL\n")
-print(df_distance_parcel.round(3))
-
-plt.figure(figsize=(8,6))
-
-plt.scatter(
-    df_distance_parcel["total_parcel"],
-    df_distance_parcel["total_distance_to_centroid"],
-    s=100
-)
-
-for _, row in df_distance_parcel.iterrows():
-
-    plt.annotate(
-        str(int(row["voronoi_id"])),
-        (
-            row["total_parcel"],
-            row["total_distance_to_centroid"]
-        )
-    )
-
-plt.xlabel("Jumlah Parcel")
-plt.ylabel("Total Distance to Centroid (km)")
-plt.title("Parcel Count vs Total Distance")
-
-plt.grid(True)
-
-plt.show()
-
-plt.figure(figsize=(12,5))
-
-x = np.arange(len(df_distance_parcel))
-
-width = 0.4
-
-plt.bar(
-    x - width/2,
-    df_distance_parcel["total_parcel"],
-    width,
-    label="Parcel"
-)
-
-plt.bar(
-    x + width/2,
-    df_distance_parcel["total_distance_to_centroid"],
-    width,
-    label="Distance"
-)
-
-plt.xticks(
-    x,
-    df_distance_parcel["voronoi_id"]
-)
-
-plt.xlabel("Voronoi ID")
-plt.ylabel("Value")
-plt.title("Parcel and Distance Distribution per Voronoi")
-
-plt.legend()
-plt.grid(True)
-
-plt.show()
-
-corr = df_distance_parcel[
-    ["total_parcel", "total_distance_to_centroid"]
-].corr().iloc[0,1]
-
-print(
-    f"\nCorrelation Parcel vs Distance : {corr:.4f}"
-)
-
-# =====================================================
-# HISTOGRAM WORKLOAD
-# =====================================================
-
-after_workload = (
-    df.groupby("voronoi_id")
-      .size()
-      .values
-)
-
-plt.figure(figsize=(8,5))
-
-plt.hist(
-    before_workload,
-    bins=10,
-    alpha=0.5,
-    label="Before CCVD"
-)
-
-plt.hist(
-    after_workload,
-    bins=10,
-    alpha=0.5,
-    label="After CCVD"
-)
-
-plt.xlabel("Parcel Count")
-plt.ylabel("Frequency")
-plt.title("Workload Distribution Before vs After CCVD")
-plt.legend()
-plt.grid(True)
-
-plt.show()
-
-# =====================================================
-# BOXPLOT FAIRNESS
-# =====================================================
-
-plt.figure(figsize=(6,5))
-
-plt.boxplot(
-    [before_workload, after_workload],
-    labels=["Before", "After"]
-)
-
-plt.ylabel("Parcel Count")
-plt.title("Workload Fairness Comparison")
-
-plt.grid(True)
-
-plt.show()
-
-# =====================================================
-# CONVERGENCE GRAPH
-# =====================================================
-
-plt.figure(figsize=(8,5))
-
-plt.plot(
-    range(len(std_history)),
-    std_history,
-    marker="o"
-)
-
-plt.xlabel("Iteration")
-plt.ylabel("Std Dev Workload")
-plt.title("CCVD Convergence")
-
-plt.grid(True)
-
-plt.show()
-
-# =====================================================
-# HEATMAP WORKLOAD
-# =====================================================
-
-heatmap_df = (
-    df.groupby("voronoi_id")
-      .size()
-      .reset_index(name="parcel_count")
-)
-
-plt.figure(figsize=(12,2))
-
-sns.heatmap(
-    heatmap_df[["parcel_count"]].T,
-    annot=True,
-    cmap="YlOrRd",
-    cbar=True
-)
-
-plt.title("Final Workload Distribution")
-
-plt.yticks([])
-
-plt.show()
-# =====================================================
-# VISUAL FINAL
-# =====================================================
-plt.figure(figsize=(10,10))
-
-bx, by = boundary_polygon.exterior.xy
-plt.plot(bx, by, 'k-', lw=2)
-voronoi_centroids_lonlat = {}
-
-for i, poly in enumerate(vor_polygons, start=1):
-    x, y = poly.exterior.xy
-    lon, lat = to_lonlat.transform(x, y)
-
-    plt.plot(lon, lat, color='black')
-
-    c = poly.centroid
-    c_lon, c_lat = to_lonlat.transform(c.x, c.y)
-    voronoi_centroids_lonlat[i] = (c_lon, c_lat)
-
-    plt.scatter(c_lon, c_lat, s=300, facecolor='white', edgecolor='black')
-    plt.text(c_lon, c_lat, str(i),
-        fontsize=10,
-        fontweight="bold",
-        color="black",
-        ha="center",
-        va="center",
-        bbox=dict(
-            facecolor="white",
-            edgecolor="black",
-            boxstyle="circle,pad=0.3",
-            alpha=0.8
-        ))
-    df["voronoi_centroid_longitude"] = df["voronoi_id"].map(lambda vid: voronoi_centroids_lonlat.get(vid, (np.nan, np.nan))[0])
-    df["voronoi_centroid_latitude"] = df["voronoi_id"].map(lambda vid: voronoi_centroids_lonlat.get(vid, (np.nan, np.nan))[1])
-
-# =====================================================
-# JARAK TITIK -> CENTROID VORONOI FINAL
-# =====================================================
-
-df["dist_to_centroid_km"] = df.apply(
-    lambda r: haversine_km(
-        r["longitude"],
-        r["latitude"],
-        r["voronoi_centroid_longitude"],
-        r["voronoi_centroid_latitude"]
-    ),
-    axis=1
-)
-
-plt.scatter(points_lonlat[:,0], points_lonlat[:,1], c='red', s=8)
-plt.title("Voronoi Balanced by Capacity")
-plt.gca().set_aspect('equal')
-plt.grid(True)
-plt.show()
-
-# =====================================================
 # EXPORT DATA TITIK KE EXCEL
 # =====================================================
 export_path = f"D:/IPB/TESIS/PENELITIAN/CODE/output/ccvd/ccvd_voronoi_assignment_final_{running_date}.xlsx"
@@ -763,3 +454,13 @@ df_export = df[[
 ]].copy()
 df_export.to_excel(export_path, index=False)
 #print(f"\nData assignment Voronoi berhasil diexport ke:\n{export_path}")
+
+# =====================================================
+# EXECUTION TIME
+# =====================================================
+end_time = time.time()
+execution_time = end_time - start_time
+
+print("\n=====================================================")
+print(f"TOTAL EXECUTION TIME : {execution_time:.2f} detik")
+print("=====================================================")
