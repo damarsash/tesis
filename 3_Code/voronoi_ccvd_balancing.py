@@ -548,7 +548,7 @@ for _, row in df_distance_parcel.iterrows():
         )
     )
 
-plt.xlabel("Jumlah Parcel")
+plt.xlabel("Number of Parcel")
 plt.ylabel("Total Distance to Centroid (km)")
 plt.title("Parcel Count vs Total Distance")
 
