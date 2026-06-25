@@ -62,30 +62,30 @@ scale_factor <- max(data_kurir$total_awb, na.rm = TRUE) /
 # 6. PLOT: TOTAL Paket (BIRU) + TOTAL DISTANCE (MERAH PUTUS-PUTUS) ---------
 ggplot(data_kurir, aes(x = `205_id`, group = 1)) +
   # Total Paket
-  geom_line(aes(y = total_awb, colour = "Total Paket"), size = 1) +
-  geom_point(aes(y = total_awb, colour = "Total Paket"), size = 1.5) +
+  geom_line(aes(y = total_awb, colour = "Total Parcel"), size = 1) +
+  geom_point(aes(y = total_awb, colour = "Total Parcel"), size = 1.5) +
   
   # Total Distance (diskalakan ke sumbu kiri)
   geom_line(aes(y = total_distance_km * scale_factor,
-                colour = "Total Jarak (km)"),
+                colour = "Travel Distance (km)"),
             linetype = "dashed", size = 1) +
   
   # Sumbu-Y kiri & kanan
   scale_y_continuous(
-    name = "Total Paket",
-    sec.axis = sec_axis(~ . / scale_factor, name = "Total Jarak (km)")
+    name = "Total Parcel",
+    sec.axis = sec_axis(~ . / scale_factor, name = "Travel Distance (km)")
   ) +
   
   # Warna & legend
   scale_colour_manual(
     name   = "Metrik",
-    values = c("Total Paket" = "blue",
-               "Total Jarak (km)" = "red")
+    values = c("Total Parcel" = "blue",
+               "Travel Distance (km)" = "red")
   ) +
   
   labs(
-    title = "Perbandingan Total Pengiriman (Paket) dan Jarak Tempuh Kurir",
-    x     = "NIK Kurir"
+    title = "Comparison of Total Parcel vs Courier Travel Distance",
+    x     = "Courier ID"
   ) +
   theme_minimal() +
   theme(
