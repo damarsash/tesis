@@ -640,7 +640,7 @@ plt.figure(figsize=(6,5))
 
 plt.boxplot(
     [before_workload, after_workload],
-    labels=["Before", "After"]
+    tick_labels=["Before", "After"]
 )
 
 plt.ylabel("Parcel Count")
@@ -679,11 +679,11 @@ heatmap_df = (
       .size()
       .reset_index(name="parcel_count")
 )
-
+heatmap_df = heatmap_df.set_index("voronoi_id")
 plt.figure(figsize=(12,2))
 
 sns.heatmap(
-    heatmap_df[["parcel_count"]].T,
+    heatmap_df.T,
     annot=True,
     cmap="YlOrRd",
     cbar=True
